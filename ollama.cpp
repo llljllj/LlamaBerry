@@ -1,0 +1,290 @@
+#include "ollama.h"
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QNetworkRequest>
+#include <QDebug>
+#include <QThread>
+#include <QDir>
+AiChatWindow::AiChatWindow(QWidget *parent) : QWidget(parent)
+{
+
+    voiceButton = new QPushButton("语音转文字", this);
+    connect(voiceButton, &QPushButton::clicked, this, &AiChatWindow::onVoiceInputClicked);
+
+
+    startButton = new QPushButton("启动qwen", this);
+    inputBox = new QLineEdit(this);
+    inputBox->setPlaceholderText("输入你的问题");
+
+    sendButton = new QPushButton("发送", this);
+    outputArea = new QTextEdit(this);
+    outputArea->setReadOnly(true);
+    process_pic = new QLabel(this);
+
+    QVBoxLayout *vlayout = new QVBoxLayout;
+    vlayout->addWidget(startButton);
+    vlayout->addWidget(inputBox);
+    vlayout->addWidget(sendButton);
+    vlayout->addWidget(outputArea);
+    vlayout->addWidget(voiceButton);  // 插入到布局中
+    QHBoxLayout *hlayout = new QHBoxLayout(this);
+    hlayout->addLayout(vlayout);
+    hlayout->addWidget(process_pic);
+
+    process_pic->setStyleSheet("border: 2px solid red;");
+    QPixmap pixmap("/home/lllj/Desktop/ollama_qt_cpp/LlamaBerry/1.jpg");
+    process_pic->setPixmap(pixmap);
+    process_pic->setFixedSize(600, 800); // 或者更小，看你布局需求
+    process_pic->setScaledContents(true); // 图片填充整个 QLabel
+    this->setStyleSheet(R"(
+        QWidget {
+            background-color: #0f111a;  /* 深色背景 */
+            color: #ffffff;             /* 默认字体白色 */
+            font-family: 'Roboto', 'Noto Sans CJK SC', sans-serif;
+            font-size: 14px;
+        }
+    
+        QPushButton {
+            min-height: 36px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                stop:0 #00c6ff, stop:1 #0072ff);
+            color: white;
+            font-weight: bold;
+            border: 1px solid #00c6ff;
+        }
+        QPushButton:hover {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                stop:0 #0072ff, stop:1 #00c6ff);
+        }
+        QPushButton:pressed {
+            background-color: #003d99;
+        }
+    
+        QLineEdit {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid #00c6ff;
+            border-radius: 8px;
+            padding: 8px;
+            color: #00eaff;
+            selection-background-color: #005f87;
+            selection-color: white;
+        }
+    
+        QTextEdit {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid #00c6ff;
+            border-radius: 8px;
+            padding: 10px;
+            color: #00eaff;
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 14px;
+        }
+    
+        QScrollBar:vertical {
+            width: 8px;
+            background: #1e1f29;
+        }
+        QScrollBar::handle:vertical {
+            background: #00c6ff;
+            min-height: 20px;
+            border-radius: 4px;
+        }
+        QScrollBar::handle:vertical:hover {
+            background: #00eaff;
+        }
+        
+    )");
+    
+    
+    networkManager = new QNetworkAccessManager(this);
+    inputBox->setAttribute(Qt::WA_InputMethodEnabled, true);
+    connect(inputBox, &QLineEdit::returnPressed, this, &AiChatWindow::onSendClicked);
+    connect(startButton, &QPushButton::clicked, this, &AiChatWindow::onStartClicked);
+    connect(sendButton, &QPushButton::clicked, this, &AiChatWindow::onSendClicked);
+    connect(networkManager, &QNetworkAccessManager::finished, this, &AiChatWindow::onReplyFinished);
+}
+
+
+void AiChatWindow::onVoiceInputClicked()
+{
+    outputArea->append("开始录音中...");
+
+    // Step 1: 录音
+    QString recordCommand = "arecord -D hw:0,0 -f S16_LE -r 16000 -c 1 -d 5 /home/lllj/Desktop/ollama_qt_cpp/LlamaBerry/out.wav";
+    QProcess::execute(recordCommand);
+
+    outputArea->append("✅ 录音结束，正在识别...");
+
+    // Step 2: 调用 Python 脚本进行语音识别
+    QString pythonScript = "/home/lllj/Desktop/ollama_qt_cpp/LlamaBerry/vosktest.py";
+    QProcess process;
+    process.start("python3", QStringList() << pythonScript);
+    process.waitForFinished();  // 等待 Python 进程执行完毕
+
+    // 等待 out.txt 文件出现
+    QString outputPath = "/home/lllj/Desktop/ollama_qt_cpp/LlamaBerry/out.txt";
+    QFile file(outputPath);
+
+    int timeout = 5000; // 最多等5秒
+    int elapsed = 0;
+    while (!file.exists() && elapsed < timeout) {
+        QThread::msleep(100);  // 休眠100ms
+        elapsed += 100;
+    }
+
+    // 确保在文件不存在时重新启动识别
+    if (!file.exists()) {
+        outputArea->append("未生成 out.txt 文件，可能是识别过程出错！");
+        return;
+    }
+
+    // 继续打开读取
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QString recognizedText = file.readAll();
+        outputArea->append("语音识别结果：" + recognizedText);
+
+        // 将识别结果作为问题输入到文本框
+        inputBox->setText(recognizedText);
+        onSendClicked();  // 自动发送
+
+        file.close();
+
+        // 识别完删除 out.txt
+        file.remove();
+    } else {
+        outputArea->append("无法读取识别结果！");
+    }
+}
+
+
+void AiChatWindow::onWhisperFinished()
+{
+    QString textPath = QDir::homePath() + "/Desktop/ollama_qt_cpp/LlamaBerry/input.wav.txt";
+    QFile file(textPath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QString content = QString::fromUtf8(file.readAll()).trimmed();
+        file.close();
+
+        if (!content.isEmpty()) {
+            inputBox->setText(content);
+            outputArea->append("识别结果: " + content);
+            onSendClicked(); // 直接触发发送
+        } else {
+            outputArea->append("语音识别失败：空内容。");
+        }
+    } else {
+        outputArea->append("无法读取识别结果文件！");
+    }
+}
+
+
+void AiChatWindow::onStartClicked()
+{
+    QString scriptPath = QDir::homePath() + "/Desktop/ollama-chatgpt-web/run_ollama.sh";
+    process.setWorkingDirectory(QDir::homePath() + "/Desktop/ollama-chatgpt-web");
+    process.start(scriptPath);
+
+
+    if (process.waitForStarted()) {
+        outputArea->append(" 已尝试启动 run_ollama.sh...");
+        connect(&process, &QProcess::readyReadStandardOutput, this, &AiChatWindow::onProcessOutput);
+    } else {
+        outputArea->append(" 启动失败！请检查路径或权限。");
+    }
+}
+
+
+void AiChatWindow::onProcessOutput()
+{
+    QByteArray output = process.readAllStandardOutput();
+    outputArea->append("[AI 启动日志] " + QString::fromUtf8(output));
+}
+
+void AiChatWindow::onSendClicked()
+{
+    QString userInput = inputBox->text().trimmed();
+    if (userInput.isEmpty()) {
+        outputArea->append("请输入内容再发送！");
+        return;
+    }
+
+    outputArea->append("你： " + userInput+"\n"+"LJ:");
+    inputBox->clear();
+    QPixmap pixmap("/home/lllj/Desktop/ollama_qt_cpp/LlamaBerry/think.jpg");
+    process_pic->setPixmap(pixmap);
+    process_pic->setFixedSize(600, 800); 
+    process_pic->setScaledContents(true); // 图片填充整个 QLabel
+    QJsonObject json;
+    json["model"] = "qwen:0.5b";
+    json["prompt"] = userInput;
+    json["stream"] = true;  // 开启流式模式！
+
+    QNetworkRequest request(QUrl("http://localhost:11434/api/generate"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QJsonDocument doc(json);
+    QByteArray data = doc.toJson();
+
+    // 保存 reply 对象用于后续处理
+    currentReply = networkManager->post(request, data);
+
+    // 绑定 readyRead 信号用于处理流式响应
+    connect(currentReply, &QNetworkReply::readyRead, this, &AiChatWindow::onReplyStreamReady);
+
+    // 最终完成时释放资源
+    connect(currentReply, &QNetworkReply::finished, currentReply, &QNetworkReply::deleteLater);
+}
+
+
+void AiChatWindow::onReplyStreamReady()
+{
+    static QString pendingText;
+    static QTimer *timer = nullptr;
+
+    while (currentReply->bytesAvailable()) {
+        QByteArray chunk = currentReply->readLine().trimmed();
+        if (chunk.isEmpty()) continue;
+
+        QJsonParseError err;
+        QJsonDocument doc = QJsonDocument::fromJson(chunk, &err);
+        if (err.error == QJsonParseError::NoError && doc.isObject()) {
+            QString content = doc["response"].toString();
+            pendingText += content;
+        }
+    }
+
+    if (!timer) {
+        timer = new QTimer(this);
+        connect(timer, &QTimer::timeout, this, [=]() mutable {
+            if (!pendingText.isEmpty()) {
+                QString nextChar = pendingText.left(1);
+                pendingText.remove(0, 1);
+                outputArea->moveCursor(QTextCursor::End);
+                outputArea->insertPlainText(nextChar);
+            } else {
+                timer->stop();
+            }
+        });
+    }
+
+    if (!timer->isActive()) {
+        timer->start(20); // 每20毫秒打一字，可以根据需求调速度
+    }
+}
+
+void AiChatWindow::onReplyFinished(QNetworkReply *reply)
+{
+    if (reply->error()) {
+        outputArea->append("\n网络错误：" + reply->errorString());
+    } else {
+        outputArea->append("\n[流式回复结束]\n");
+        QPixmap pixmap("/home/lllj/Desktop/ollama_qt_cpp/LlamaBerry/1.jpg");
+        process_pic->setPixmap(pixmap);
+        process_pic->setFixedSize(600, 800); 
+        process_pic->setScaledContents(true); 
+    }
+
+    reply->deleteLater();
+}
