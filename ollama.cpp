@@ -26,7 +26,7 @@ AiChatWindow::AiChatWindow(QWidget *parent) : QWidget(parent)
     vlayout->addWidget(inputBox);
     vlayout->addWidget(sendButton);
     vlayout->addWidget(outputArea);
-    vlayout->addWidget(voiceButton);  // 插入到布局中
+    vlayout->addWidget(voiceButton);  
     QHBoxLayout *hlayout = new QHBoxLayout(this);
     hlayout->addLayout(vlayout);
     hlayout->addWidget(process_pic);
@@ -34,8 +34,8 @@ AiChatWindow::AiChatWindow(QWidget *parent) : QWidget(parent)
     process_pic->setStyleSheet("border: 2px solid red;");
     QPixmap pixmap("/home/lllj/Desktop/ollama_qt_cpp/LlamaBerry/1.jpg");
     process_pic->setPixmap(pixmap);
-    process_pic->setFixedSize(600, 800); // 或者更小，看你布局需求
-    process_pic->setScaledContents(true); // 图片填充整个 QLabel
+    process_pic->setFixedSize(600, 800); 
+    process_pic->setScaledContents(true); 
     this->setStyleSheet(R"(
         QWidget {
             background-color: #0f111a;  /* 深色背景 */
@@ -115,7 +115,7 @@ void AiChatWindow::onVoiceInputClicked()
     QString recordCommand = "arecord -D hw:0,0 -f S16_LE -r 16000 -c 1 -d 5 /home/lllj/Desktop/ollama_qt_cpp/LlamaBerry/out.wav";
     QProcess::execute(recordCommand);
 
-    outputArea->append("✅ 录音结束，正在识别...");
+    outputArea->append("录音结束，正在识别...");
 
     // Step 2: 调用 Python 脚本进行语音识别
     QString pythonScript = "/home/lllj/Desktop/ollama_qt_cpp/LlamaBerry/vosktest.py";
@@ -170,7 +170,7 @@ void AiChatWindow::onWhisperFinished()
         if (!content.isEmpty()) {
             inputBox->setText(content);
             outputArea->append("识别结果: " + content);
-            onSendClicked(); // 直接触发发送
+            onSendClicked(); 
         } else {
             outputArea->append("语音识别失败：空内容。");
         }
@@ -215,11 +215,11 @@ void AiChatWindow::onSendClicked()
     QPixmap pixmap("/home/lllj/Desktop/ollama_qt_cpp/LlamaBerry/think.jpg");
     process_pic->setPixmap(pixmap);
     process_pic->setFixedSize(600, 800); 
-    process_pic->setScaledContents(true); // 图片填充整个 QLabel
+    process_pic->setScaledContents(true); 
     QJsonObject json;
     json["model"] = "qwen:0.5b";
     json["prompt"] = userInput;
-    json["stream"] = true;  // 开启流式模式！
+    json["stream"] = true;  // 开启流式
 
     QNetworkRequest request(QUrl("http://localhost:11434/api/generate"));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -270,7 +270,7 @@ void AiChatWindow::onReplyStreamReady()
     }
 
     if (!timer->isActive()) {
-        timer->start(20); // 每20毫秒打一字，可以根据需求调速度
+        timer->start(20); //
     }
 }
 
