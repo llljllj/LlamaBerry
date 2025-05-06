@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>AI 流式聊天</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        #chat-box {
+            width: 100%;
+            max-width: 600px;
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            background: #f9f9f9;
+            margin-bottom: 10px;
+        }
+        .message { margin: 5px 0; }
+        .user { color: blue; }
+        .ai { color: green; }
+    </style>
+</head>
+<body>
+    <h2>与本地 AI 流式对话</h2>
+    <div id="chat-box"></div>
+    <input type="text" id="message" placeholder="输入你的消息..." onkeydown="if(event.key === 'Enter') sendMessage()">
+    <button onclick="sendMessage()">发送</button>
+
+    <script>
+        const chatBox = document.getElementById("chat-box");
+
+        function appendMessage(role, text, id = null) {
+            const msg = document.createElement("div");
+            msg.className = `message ${role}`;
+            msg.innerHTML = `<strong>${role === "user" ? "你" : "AI"}:</strong> <span id="${id || ''}">${text}</span>`;
+            chatBox.appendChild(msg);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById("message");
+            const userText = input.value.trim();
+            if (!userText) return;
+
+            appendMessage("user", userText);
+            input.value = "";
+
+            const aiId = "ai-" + Date.now();
+            appendMessage("ai", "...", aiId);
+
+            try {
+                const response = await fetch("/chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: userText })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder("utf-8");
+                let fullText = "";
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    const chunk = decoder.decode(value);
+                    fullText += chunk.replace(/^data:\s*/gm, "");
+                    document.getElementById(aiId).textContent = fullText;
+                }
+            } catch (err) {
+                document.getElementById(aiId).textContent = "（错误：无法连接AI服务）";
+            }
+        }
+    </script>
+</body>
+</html>

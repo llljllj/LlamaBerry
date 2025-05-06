@@ -27,7 +27,11 @@ AiChatWindow::AiChatWindow(QWidget *parent) : QWidget(parent)//初始化
     vlayout->addWidget(inputBox);
     vlayout->addWidget(sendButton);
     vlayout->addWidget(outputArea);
+<<<<<<< HEAD
     vlayout->addWidget(voiceButton); 
+=======
+    vlayout->addWidget(voiceButton);  
+>>>>>>> 86268d670f369f8cbd5e1a333e1c484dddc77b0b
     QHBoxLayout *hlayout = new QHBoxLayout(this);
     hlayout->addLayout(vlayout);
     hlayout->addWidget(process_pic);
@@ -36,8 +40,12 @@ AiChatWindow::AiChatWindow(QWidget *parent) : QWidget(parent)//初始化
     QPixmap pixmap("/home/lllj/Desktop/ollama_qt_cpp/LlamaBerry/1.jpg");
     process_pic->setPixmap(pixmap);
     process_pic->setFixedSize(600, 800); 
+<<<<<<< HEAD
     process_pic->setScaledContents(true); // 图片填充
 
+=======
+    process_pic->setScaledContents(true); 
+>>>>>>> 86268d670f369f8cbd5e1a333e1c484dddc77b0b
     this->setStyleSheet(R"(
         QWidget {
             background-color: #0f111a;  
@@ -168,7 +176,11 @@ void AiChatWindow::onWhisperFinished()//语音识别结束
         if (!content.isEmpty()) {
             inputBox->setText(content);
             outputArea->append("识别结果: " + content);
+<<<<<<< HEAD
             onSendClicked();
+=======
+            onSendClicked(); 
+>>>>>>> 86268d670f369f8cbd5e1a333e1c484dddc77b0b
         } else {
             outputArea->append("语音识别失败，空内容");
         }
@@ -214,6 +226,7 @@ void AiChatWindow::onSendClicked()//发送消息
     QPixmap pixmap("/home/lllj/Desktop/ollama_qt_cpp/LlamaBerry/src/picture/think.jpg");
     process_pic->setPixmap(pixmap);
     process_pic->setFixedSize(600, 800); 
+<<<<<<< HEAD
     process_pic->setScaledContents(true);
 
     QJsonObject json;
@@ -271,6 +284,7 @@ void AiChatWindow::onReplyStreamReady()//流式处理
 
     if (!timer->isActive()) {
         timer->start(20); //每20毫秒打一字
+
     }
 }
 

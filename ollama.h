@@ -24,6 +24,7 @@ extern "C" {
 #define slots Q_SLOTS  
 
 
+
 class AiChatWindow : public QWidget
 {
     Q_OBJECT
@@ -51,7 +52,9 @@ private:
     QProcess process;
     QNetworkAccessManager *networkManager;
 
+
     //QStringList history;     //聊天记录（预留）
     //QString lastUserInput;    
     //QString fullResponse;     
+
 };
