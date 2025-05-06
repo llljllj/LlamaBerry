@@ -5,10 +5,8 @@ int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
 
-   // 设置输入法模块
    qputenv("QT_IM_MODULE", QByteArray("ibus"));
 
-   // 设置全局编码为UTF-8
    QTextCodec::setCodecForLocale(QTextCodec::codecForName("UTF-8"));
 
     AiChatWindow w;
