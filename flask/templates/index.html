@@ -25,8 +25,65 @@
     <div id="chat-box"></div>
     <input type="text" id="message" placeholder="输入你的消息..." onkeydown="if(event.key === 'Enter') sendMessage()">
     <button onclick="sendMessage()">发送</button>
+    <button onclick="uploadFile()">上传文件</button>
+    <input type="file" id="file-input" style="display: none;">
 
     <script>
+        // 动态加载文件列表
+    async function loadFileList() {
+        const fileSelect = document.getElementById("file-select");
+        try {
+            const response = await fetch("/files");
+            const data = await response.json();
+
+            if (response.ok) {
+                // 清空现有选项
+                fileSelect.innerHTML = '<option value="" disabled selected>选择文件</option>';
+                // 动态添加文件选项
+                data.files.forEach(file => {
+                    const option = document.createElement("option");
+                    option.value = file;
+                    option.textContent = file;
+                    fileSelect.appendChild(option);
+                });
+            } else {
+                alert("无法加载文件列表：" + data.error);
+            }
+        } catch (err) {
+            alert("加载文件列表时发生错误：" + err.message);
+        }
+    }
+
+    // 页面加载时调用
+    window.onload = loadFileList;
+
+    async function downloadSelectedFile() {
+        const fileSelect = document.getElementById("file-select");
+        const filename = fileSelect.value;
+
+        if (!filename) {
+            alert("请选择一个文件！");
+            return;
+        }
+
+        const url = `/download/${filename}`;
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                alert("文件下载失败：" + response.statusText);
+                return;
+            }
+
+            const blob = await response.blob();
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+            URL.revokeObjectURL(link.href);
+        } catch (err) {
+            alert("下载过程中发生错误：" + err.message);
+        }
+    }
         const chatBox = document.getElementById("chat-box");
 
         function appendMessage(role, text, id = null) {
@@ -70,6 +127,42 @@
                 document.getElementById(aiId).textContent = "（错误：无法连接AI服务）";
             }
         }
+        async function uploadFile() {
+        const fileInput = document.getElementById("file-input");
+        fileInput.click();
+
+        fileInput.onchange = async () => {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const response = await fetch("/upload", {
+                    method: "POST",
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    alert("文件上传成功：" + JSON.stringify(result));
+                } else {
+                    alert("文件上传失败：" + JSON.stringify(result));
+                }
+            } catch (err) {
+                alert("上传过程中发生错误：" + err.message);
+            }
+        };
+        }
     </script>
+<div>
+    <h3>文件下载</h3>
+    <select id="file-select">
+        <option value="" disabled selected>选择文件</option>
+    </select>
+    <button onclick="downloadSelectedFile()">下载文件</button>
+</div>
+
 </body>
 </html>
