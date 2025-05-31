@@ -2,74 +2,317 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>AI 流式聊天</title>
+    <title>树莓派 AI 助手</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: Arial; padding: 20px; }
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: #f0f2f5;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 700px;
+            margin: 40px auto;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            padding: 32px 24px 24px 24px;
+        }
+        h2, h3 {
+            margin-top: 0;
+            color: #2d3a4b;
+        }
+        #sys-status {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 15px;
+            color: #444;
+            margin-bottom: 24px;
+            border: 1px solid #e3e6ea;
+        }
         #chat-box {
             width: 100%;
-            max-width: 600px;
-            height: 400px;
+            height: 320px;
             overflow-y: auto;
-            border: 1px solid #ccc;
-            padding: 10px;
-            background: #f9f9f9;
-            margin-bottom: 10px;
+            border-radius: 8px;
+            border: 1px solid #e3e6ea;
+            background: #f7fafc;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-sizing: border-box;
         }
-        .message { margin: 5px 0; }
-        .user { color: blue; }
-        .ai { color: green; }
+        .message {
+            margin: 8px 0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            max-width: 90%;
+            word-break: break-all;
+        }
+        .user {
+            background: #e3f0ff;
+            color: #2563eb;
+            align-self: flex-end;
+            text-align: right;
+        }
+        .ai {
+            background: #e6f7e6;
+            color: #1a7f37;
+            align-self: flex-start;
+            text-align: left;
+        }
+        .input-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        #message {
+            flex: 1;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #cfd8dc;
+            font-size: 16px;
+        }
+        button {
+            background: linear-gradient(90deg, #2563eb 60%, #1a7f37 100%);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 18px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 8px rgba(37,99,235,0.08);
+        }
+        button:hover {
+            background: linear-gradient(90deg, #1a7f37 60%, #2563eb 100%);
+            box-shadow: 0 4px 16px rgba(37,99,235,0.15);
+        }
+        #file-select {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #cfd8dc;
+            font-size: 15px;
+            margin-right: 8px;
+        }
+        @media (max-width: 600px) {
+            .container { padding: 12px 4px; }
+            #chat-box { height: 200px; }
+            .input-row { flex-direction: column; gap: 6px; }
+            button, #message, #file-select { font-size: 15px; }
+        }
     </style>
 </head>
 <body>
-    <h2>与本地 AI 流式对话</h2>
-    <div id="chat-box"></div>
-    <input type="text" id="message" placeholder="输入你的消息..." onkeydown="if(event.key === 'Enter') sendMessage()">
-    <button onclick="sendMessage()">发送</button>
+    <div class="container">
+        <h2>树莓派 AI 助手</h2>
+        <h3>系统状态</h3>
+        <pre id="sys-status">加载中...</pre>
 
-    <script>
-        const chatBox = document.getElementById("chat-box");
+        <h3>与本地 AI 流式对话</h3>
+        <div id="chat-box"></div>
+        <div class="input-row">
+            <input type="text" id="message" placeholder="输入你的消息..." onkeydown="if(event.key === 'Enter') sendMessage()">
+            <button onclick="sendMessage()">发送</button>
+            <button onclick="uploadFile()">上传文件</button>
+            <input type="file" id="file-input" style="display: none;">
+        </div>
+        <h3>照片识别</h3>
+        <button onclick="uploadAndDetect()">上传照片识别</button>
+        <div id="detect-result" style="margin-top:12px;"></div>
+        <h3>文件下载</h3>
+        <div class="input-row">
+            <select id="file-select">
+                <option value="" disabled selected>选择文件</option>
+            </select>
+            <button onclick="downloadSelectedFile()">下载文件</button>
+        </div>
+    </div>
 
-        function appendMessage(role, text, id = null) {
-            const msg = document.createElement("div");
-            msg.className = `message ${role}`;
-            msg.innerHTML = `<strong>${role === "user" ? "你" : "AI"}:</strong> <span id="${id || ''}">${text}</span>`;
-            chatBox.appendChild(msg);
-            chatBox.scrollTop = chatBox.scrollHeight;
+<script>
+async function loadSystemStatus() {
+    try {
+        const resp = await fetch("/system_status");
+        const data = await resp.json();
+        if (data.error) {
+            document.getElementById("sys-status").textContent = data.error;
+        } else {
+            document.getElementById("sys-status").textContent =
+                `CPU负载: ${data.cpu_load}
+内存总量: ${data.mem_total}
+可用内存: ${data.mem_free}
+磁盘: ${data.disk}`;
+        }
+    } catch (e) {
+        document.getElementById("sys-status").textContent = "获取失败";
+    }
+}
+// 页面加载和每10秒刷新一次
+loadSystemStatus();
+setInterval(loadSystemStatus, 10000);
+
+async function uploadAndDetect() {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.onchange = async () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('file', file);
+
+        // 发送图片到 Flask YOLO 接口
+        const resp = await fetch('/yolo_detect', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await resp.json();
+
+        // 渲染检测结果
+        const resultDiv = document.getElementById('detect-result');
+        if (result.error) {
+            resultDiv.innerHTML = `<span style="color:red;">${result.error}</span>`;
+            return;
+        }
+        if (!result.detections || result.detections.length === 0) {
+            resultDiv.innerHTML = "未检测到目标。";
+            return;
+        }
+        let html = `<b>检测结果：</b><ul>`;
+        result.detections.forEach(obj => {
+            html += `<li>${obj['name'] || obj['class']} 置信度: ${(obj['confidence']*100).toFixed(1)}%</li>`;
+        });
+        html += `</ul>`;
+        resultDiv.innerHTML = html;
+    };
+    fileInput.click();
+}
+// 动态加载文件列表
+async function loadFileList() {
+    const fileSelect = document.getElementById("file-select");
+    try {
+        const response = await fetch("/files");
+        const data = await response.json();
+
+        if (response.ok) {
+            fileSelect.innerHTML = '<option value="" disabled selected>选择文件</option>';
+            data.files.forEach(file => {
+                const option = document.createElement("option");
+                option.value = file;
+                option.textContent = file;
+                fileSelect.appendChild(option);
+            });
+        } else {
+            alert("无法加载文件列表：" + data.error);
+        }
+    } catch (err) {
+        alert("加载文件列表时发生错误：" + err.message);
+    }
+}
+window.onload = loadFileList;
+
+async function downloadSelectedFile() {
+    const fileSelect = document.getElementById("file-select");
+    const filename = fileSelect.value;
+
+    if (!filename) {
+        alert("请选择一个文件！");
+        return;
+    }
+
+    const url = `/download/${filename}`;
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            alert("文件下载失败：" + response.statusText);
+            return;
         }
 
-        async function sendMessage() {
-            const input = document.getElementById("message");
-            const userText = input.value.trim();
-            if (!userText) return;
+        const blob = await response.blob();
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    } catch (err) {
+        alert("下载过程中发生错误：" + err.message);
+    }
+}
 
-            appendMessage("user", userText);
-            input.value = "";
+const chatBox = document.getElementById("chat-box");
 
-            const aiId = "ai-" + Date.now();
-            appendMessage("ai", "...", aiId);
+function appendMessage(role, text, id = null) {
+    const msg = document.createElement("div");
+    msg.className = `message ${role}`;
+    msg.innerHTML = `<strong>${role === "user" ? "你" : "AI"}:</strong> <span id="${id || ''}">${text}</span>`;
+    chatBox.appendChild(msg);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
 
-            try {
-                const response = await fetch("/chat", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ message: userText })
-                });
+async function sendMessage() {
+    const input = document.getElementById("message");
+    const userText = input.value.trim();
+    if (!userText) return;
 
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder("utf-8");
-                let fullText = "";
+    appendMessage("user", userText);
+    input.value = "";
 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    const chunk = decoder.decode(value);
-                    fullText += chunk.replace(/^data:\s*/gm, "");
-                    document.getElementById(aiId).textContent = fullText;
-                }
-            } catch (err) {
-                document.getElementById(aiId).textContent = "（错误：无法连接AI服务）";
+    const aiId = "ai-" + Date.now();
+    appendMessage("ai", "...", aiId);
+
+    try {
+        const response = await fetch("/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: userText })
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let fullText = "";
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value);
+            fullText += chunk.replace(/^data:\s*/gm, "");
+            document.getElementById(aiId).textContent = fullText;
+        }
+    } catch (err) {
+        document.getElementById(aiId).textContent = "（错误：无法连接AI服务）";
+    }
+}
+
+async function uploadFile() {
+    const fileInput = document.getElementById("file-input");
+    fileInput.click();
+
+    fileInput.onchange = async () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const response = await fetch("/upload", {
+                method: "POST",
+                body: formData
+            });
+
+            const result = await response.json();
+            if (response.ok) {
+                alert("文件上传成功：" + JSON.stringify(result));
+                loadFileList(); // 上传成功后刷新文件列表
+            } else {
+                alert("文件上传失败：" + JSON.stringify(result));
             }
+        } catch (err) {
+            alert("上传过程中发生错误：" + err.message);
         }
-    </script>
+    };
+}
+</script>
 </body>
 </html>
