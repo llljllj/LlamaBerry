@@ -179,12 +179,15 @@ async function uploadAndDetect() {
             resultDiv.innerHTML = "未检测到目标。";
             return;
         }
-        let html = `<b>检测结果：</b><ul>`;
-        result.detections.forEach(obj => {
-            html += `<li>${obj['name'] || obj['class']} 置信度: ${(obj['confidence']*100).toFixed(1)}%</li>`;
-        });
-        html += `</ul>`;
-        resultDiv.innerHTML = html;
+       let html = `<b>检测结果：</b><ul>`;
+result.detections.forEach(obj => {
+    html += `<li>${obj['name'] || obj['class']} 置信度: ${(obj['confidence']*100).toFixed(1)}%</li>`;
+});
+html += `</ul>`;
+if(result.img_url){
+    html += `<img src="${result.img_url}" style="max-width:100%;margin-top:10px;border:2px solid #2563eb;border-radius:8px;">`;
+}
+resultDiv.innerHTML = html;
     };
     fileInput.click();
 }
