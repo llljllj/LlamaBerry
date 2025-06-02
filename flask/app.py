@@ -9,7 +9,7 @@ import tempfile
 import io
 from PIL import Image
 
-# YOLOv5模型加载（确保已安装 yolov5 依赖和 torch）
+# YOLOv5模型加载
 import torch
 model = torch.hub.load('ultralytics/yolov5', 'yolov5s', device='cpu')  # 或 'cuda'，如有GPU
 
